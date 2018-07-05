@@ -1,0 +1,3 @@
+[submodule "rust-lpsolve"]
+	path = rust-lpsolve
+	url = git@github.com:Virtlink/rust-lpsolve.git
