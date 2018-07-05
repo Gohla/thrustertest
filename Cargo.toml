@@ -1,0 +1,14 @@
+[package]
+name = "thrustertest"
+version = "0.1.0"
+authors = ["Virtlink <647530+Virtlink@users.noreply.github.com>"]
+
+[patch.crates-io]
+lpsolve = { path = "rust-lpsolve" }
+lpsolve-sys = { path = "rust-lpsolve/lpsolve-sys" }
+
+[dependencies]
+lpsolve = "0.1.0"
+
+[dependencies.lpsolve-sys]
+path = "rust-lpsolve/lpsolve-sys"
