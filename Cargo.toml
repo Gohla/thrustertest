@@ -9,6 +9,7 @@ lpsolve-sys = { path = "rust-lpsolve/lpsolve-sys" }
 
 [dependencies]
 lpsolve = "0.1.0"
+nalgebra = "0.15"
 
 [dependencies.lpsolve-sys]
 path = "rust-lpsolve/lpsolve-sys"
