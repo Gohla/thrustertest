@@ -50,7 +50,8 @@ fn main() {
     // is a weighted combination of these.
 
     let mut p = Problem::new(0, thrusters.len() as i32).unwrap();
-    p.set_verbose(Verbosity::Full);
+    p.set_verbose(Verbosity::Critical);
+    // p.set_verbose(Verbosity::Full);
 
     // t1 + t2 + t3 + ... >= 0
     let r0 = row(thrusters.len(), vec![1.0; thrusters.len()]);
@@ -106,10 +107,11 @@ fn main() {
         }
     }
 
-    println!("-------------------");
-    let mut buf = vec![0u8; 1024];
-    p.write_freemps(&mut buf);
-    println!("{}", str::from_utf8(&buf).unwrap());
+    // Print MPS file:
+    // println!("-------------------");
+    // let mut buf = vec![0u8; 1024];
+    // p.write_freemps(&mut buf);
+    // println!("{}", str::from_utf8(&buf).unwrap());
     println!("Done");
 }
 
