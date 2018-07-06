@@ -1,128 +1,168 @@
+#![allow(dead_code)]
+
 extern crate lpsolve;
 extern crate nalgebra;
 
-use std::str;
 use lpsolve::*;
 use nalgebra::Vector2;
 
+type Num = f64;
+type V2 = Vector2<Num>;
+
 struct Thruster {
-    location: Vector2<f32>,
-    direction: Vector2<f32>,
-    max_thrust: f32
+  location: V2,
+  direction: V2,
+  max_thrust: Num,
+}
+
+enum Target {
+  Nothing,
+  //Stop(f32), // TODO: implement stopping on an axis.
+  Zero,
+  Positive,
+  Negative,
 }
 
 fn main() {
-    // Current situation
-    let t0 = Thruster {
-        location: Vector2::new(2.0, -2.0),
-        direction: Vector2::new(0.0, 1.0),
-        max_thrust: 100.0,
-    };
-    let t1 = Thruster {
-        location: Vector2::new(-2.0, -2.0),
-        direction: Vector2::new(0.0, 1.0),
-        max_thrust: 100.0,
-    };
-    let t2 = Thruster {
-        location: Vector2::new(2.0, -1.0),
-        direction: Vector2::new(f32::cos(-45f32.to_radians()), f32::sin(-45f32.to_radians())),
-        max_thrust: 10.0,
-    };
-    let t3 = Thruster {
-        location: Vector2::new(-2.0, -1.0),
-        direction: Vector2::new(f32::cos(225f32.to_radians()), f32::sin(225f32.to_radians())),
-        max_thrust: 10.0,
-    };
-    let thrusters = vec!(t0, t1, t2, t3);
+  // Current situation
+  let t0 = Thruster {
+    location: V2::new(2.0, -2.0),
+    direction: V2::new(0.0, 1.0),
+    max_thrust: 100.0,
+  };
+  let t1 = Thruster {
+    location: V2::new(-2.0, -2.0),
+    direction: V2::new(0.0, 1.0),
+    max_thrust: 100.0,
+  };
+  let t2 = Thruster {
+    location: V2::new(2.0, -1.0),
+    direction: V2::new(Num::cos(-45f64.to_radians()), Num::sin(-45f64.to_radians())),
+    max_thrust: 10.0,
+  };
+  let t3 = Thruster {
+    location: V2::new(-2.0, -1.0),
+    direction: V2::new(Num::cos(225f64.to_radians()), Num::sin(225f64.to_radians())),
+    max_thrust: 10.0,
+  };
+  let thrusters = vec![t0, t1, t2, t3];
+  let num_thrusters = thrusters.len();
 
-    // Desired direction and rotation
-//    let target_direction = Vector2::new(0, 1);
-//    let target_rotation = 20.0;
+  // Target
+  let x_target = Target::Zero;
+  let y_target = Target::Positive;
+  let angular_target = Target::Zero;
 
-    // We calculate six situations:
-    // - thrust in +X direction
-    // - thrust in +Y direction
-    // - thrust in -X direction
-    // - thrust in -Y direction
-    // - rotate clockwise
-    // - rotate counter-clockwise
-    // After that, any rotation or translation
-    // is a weighted combination of these.
+  let mut p = Problem::new(0, num_thrusters as i32).unwrap();
+  p.set_verbose(Verbosity::Critical);
 
-    let mut p = Problem::new(0, thrusters.len() as i32).unwrap();
-    p.set_verbose(Verbosity::Critical);
-    // p.set_verbose(Verbosity::Full);
-
-    // t1 + t2 + t3 + ... >= 0
-    let r0 = row(thrusters.len(), vec![1.0; thrusters.len()]);
-    p.add_constraint(&r0, 0.0, ConstraintType::Ge);
-
-    for (i, thruster) in thrusters.iter().enumerate() {
-        // ti >= 0
-        let mut vmin = vec![0.0; thrusters.len()];
-        vmin[i] = 1.0;
-        let rmin = row(thrusters.len(), vmin).into_boxed_slice();
-        p.add_constraint(&rmin, 0.0, ConstraintType::Ge);
-
-        // ti <= MAX
-        let mut vmax = vec![0.0; thrusters.len()];
-        vmax[i] = 1.0;
-        let rmax = row(thrusters.len(), vmax).into_boxed_slice();
-        p.add_constraint(&rmax, thruster.max_thrust as f64, ConstraintType::Le);
+  let mut objective_function = vec![0.0; thrusters.len()];
+  match x_target {
+    Target::Nothing => {}
+    Target::Zero => {
+      // Add row indicating that thrusters may have no effect on movement in X.
+      let x_effect: Vec<Num> = thrusters.iter().map(|t| t.direction.x).collect();
+      let row = row(num_thrusters, x_effect).into_boxed_slice();
+      p.add_constraint(&row, 0.0, ConstraintType::Eq);
     }
-
-    // t1 * d1.x + t2 * d2.x + t3 * d3.x + ... == 0
-    let rx = row(thrusters.len(), thrusters.iter().map(|t| t.direction.x as f64));
-    p.add_constraint(&rx, 0.0, ConstraintType::Eq);
-//    p.set_objective_function(&rx);
-//    p.set_maxim();
-
-    // t1 * d1.y + t2 * d2.y + t3 * d3.y + ... == 0
-    let ry = row(thrusters.len(), thrusters.iter().map(|t| t.direction.y as f64));
-    p.add_constraint(&ry, 0.0, ConstraintType::Eq);
-//    p.set_objective_function(&ry);
-//    p.set_maxim();
-
-    // ri is the vector from the center of mass to the center of the thruster.
-    // Simply by having the center of mass at 0,0, we can take only the thruster location for ri.
-    // t1 * c1 + t2 * c2 + t3 * c3 + ... == 0
-    let rr = row(thrusters.len(), thrusters.iter().map(|t| t.direction.perp(&t.location) as f64));
-    println!("{:?}", rr);
-//    p.add_constraint(&rr, 0.0, ConstraintType::Eq);
-    p.set_objective_function(&rr);
-    p.set_maxim();
-//    p.set_minim();
-
-    println!("Solving:");
-    let status = p.solve();
-    match status {
-        SolveStatus::Optimal | SolveStatus::Suboptimal => {
-            let mut result = vec![0.0; thrusters.len()];
-            p.get_solution_variables(&mut result);
-            let obj = p.get_objective();
-            println!("Result: {:?} {:?} => {}", status, result, obj);
-        },
-        _ => {
-            println!("Could not find a solution, or an error occurred: {:?}", status);
-        }
+    Target::Positive => {
+      // For each thruster, add effect of movement in X to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] += thruster.direction.x
+      }
     }
+    Target::Negative => {
+      // For each thruster, add inverse of effect of movement in X to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] -= thruster.direction.x
+      }
+    }
+  }
+  match y_target {
+    Target::Nothing => {}
+    Target::Zero => {
+      // Add row indicating that thrusters may have no effect on movement in Y.
+      let y_effect: Vec<Num> = thrusters.iter().map(|t| t.direction.y).collect();
+      let row = row(num_thrusters, y_effect).into_boxed_slice();
+      p.add_constraint(&row, 0.0, ConstraintType::Eq);
+    }
+    Target::Positive => {
+      // For each thruster, add effect of movement in Y to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] += thruster.direction.y
+      }
+    }
+    Target::Negative => {
+      // For each thruster, add inverse of effect of movement in Y to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] -= thruster.direction.y
+      }
+    }
+  }
+  match angular_target {
+    Target::Nothing => {}
+    Target::Zero => {
+      // Add row indicating that it may have no effect on angular movement.
+      let angular_effect: Vec<Num> = thrusters.iter().map(|t| t.direction.perp(&t.location)).collect();
+      let row = row(num_thrusters, angular_effect).into_boxed_slice();
+      p.add_constraint(&row, 0.0, ConstraintType::Eq);
+    }
+    Target::Positive => {
+      // For each thruster, add effect of angular movement to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] += thruster.direction.perp(&thruster.location);
+      }
+    }
+    Target::Negative => {
+      // For each thruster, add inverse of angular movement to objective function.
+      for (i, thruster) in thrusters.iter().enumerate() {
+        objective_function[i] -= thruster.direction.perp(&thruster.location);
+      }
+    }
+  }
+  let objective_function_row = row(num_thrusters, objective_function);
+  p.set_objective_function(&objective_function_row);
+  p.set_maxim();
 
-    // Print MPS file:
-    // println!("-------------------");
-    // let mut buf = vec![0u8; 1024];
-    // p.write_freemps(&mut buf);
-    // println!("{}", str::from_utf8(&buf).unwrap());
-    println!("Done");
+  // For each thruster, constrain thrust >= 0 and <= max_thrust.
+  for (i, thruster) in thrusters.iter().enumerate() {
+    // ti >= 0
+    let mut vmin = vec![0.0; num_thrusters];
+    vmin[i] = 1.0;
+    let rmin = row(thrusters.len(), vmin).into_boxed_slice();
+    p.add_constraint(&rmin, 0.0, ConstraintType::Ge);
+
+    // ti <= MAX
+    let mut vmax = vec![0.0; thrusters.len()];
+    vmax[i] = 1.0;
+    let rmax = row(thrusters.len(), vmax).into_boxed_slice();
+    p.add_constraint(&rmax, thruster.max_thrust, ConstraintType::Le);
+  }
+
+  println!("Solving:");
+  let status = p.solve();
+  match status {
+    SolveStatus::Optimal | SolveStatus::Suboptimal => {
+      let mut result = vec![0.0; thrusters.len()];
+      p.get_solution_variables(&mut result);
+      let obj = p.get_objective();
+      println!("Result: {:?} {:?} => {}", status, result, obj);
+    }
+    _ => {
+      println!("Could not find a solution, or an error occurred: {:?}", status);
+    }
+  }
+  println!("Done");
 }
 
 fn row<I>(columns: usize, values: I) -> Vec<f64>
-  where I: IntoIterator<Item = f64> {
-    // NOTE: Element 0 of each list of coefficients is ignored.
-    // NOTE: Not putting the lists in separate variables or boxing them causes an unknown error,
-    // probably because the data is not longer in memory after it has been borrowed.
-    let mut r: Vec<f64> = vec![0.0f64; columns + 1];
-    for (i, v) in values.into_iter().enumerate() {
-        r[i + 1] = v;
-    }
-    return r;
+  where I: IntoIterator<Item=f64> {
+  // NOTE: Element 0 of each list of coefficients is ignored.
+  // NOTE: Not putting the lists in separate variables or boxing them causes an unknown error,
+  // probably because the data is not longer in memory after it has been borrowed.
+  let mut r: Vec<f64> = vec![0.0f64; columns + 1];
+  for (i, v) in values.into_iter().enumerate() {
+    r[i + 1] = v;
+  }
+  return r;
 }
