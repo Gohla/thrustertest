@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-//! A linear programming solver for thruster dynamics acting on a body in 2D space.
+//! A linear programming solver for thruster dynamics acting on a rigid body in 2D space.
 //! We use the following units:
 //!
 //! * Distance : meters (m)
@@ -25,7 +25,7 @@ type Num = f64;
 type V2 = Vector2<Num>;
 type P2 = Point2<Num>;
 
-/// A 2D body.
+/// A rigid body in 2D space.
 struct Body {
   /// The mass of the body, in kg.
   mass: f64,
@@ -35,21 +35,26 @@ struct Body {
   thrusters: Vec<Thruster>,
 }
 
-/// A thruster on a 2D body.
+/// A thruster on a rigid body in 2D space.
 #[derive(Clone)]
 struct Thruster {
   /// Name of the thruster.
   name: String,
-  /// Location of the thruster on the body, in m.
-  location: P2,
-  // TODO: should direction be normalized?
-  /// Direction in which acceleration is applied, in m.
+  /// Position of the thruster on the body, in m.
+  position: P2,
+  /// Normalized direction in which acceleration is applied.
   direction: V2,
   /// Maximum force the thruster can produce, in N.
   max_thrust: Num,
 }
 
-/// The calculated effects on a 2D body, from a thruster.
+impl Thruster {
+  fn new(name: impl Into<String>, position: P2, direction: V2, max_thrust: Num) -> Self {
+    Thruster { name: name.into(), position, direction: direction.normalize(), max_thrust }
+  }
+}
+
+/// The calculated effects of a thruster on a rigid body in 2D space.
 struct ThrusterEffect {
   /// The thruster this effect calculation is for.
   thruster: Thruster,
@@ -74,6 +79,7 @@ enum AccelerationCommand {
   Positive,
   /// Minimize (or maximize negative) acceleration on the axis.
   Negative,
+// TODO: implement stopping.
 //  /// Maximize deceleration on the axis to stop the body.
 //  Stop {
 //    /// Maximum deceleration that may be applied to stop the body.
@@ -87,30 +93,10 @@ fn main() {
     mass: 10.0,
     center_of_mass: P2::new(0.0, 0.0),
     thrusters: vec![
-      Thruster {
-        name: "T0".to_owned(),
-        location: P2::new(2.0, -2.0),
-        direction: V2::new(0.0, 1.0),
-        max_thrust: 100.0,
-      },
-      Thruster {
-        name: "T1".to_owned(),
-        location: P2::new(-2.0, -2.0),
-        direction: V2::new(0.0, 1.0),
-        max_thrust: 100.0,
-      },
-      Thruster {
-        name: "T2".to_owned(),
-        location: P2::new(2.0, -1.0),
-        direction: V2::new(-0.5, -0.5),
-        max_thrust: 25.0,
-      },
-      Thruster {
-        name: "T3".to_owned(),
-        location: P2::new(-2.0, -1.0),
-        direction: V2::new(0.5, -0.5),
-        max_thrust: 50.0,
-      },
+      Thruster::new("T0", P2::new(2.0, -2.0), V2::new(0.0, 1.0), 100.0),
+      Thruster::new("T1", P2::new(-2.0, -2.0), V2::new(0.0, 1.0), 100.0),
+      Thruster::new("T2", P2::new(2.0, -1.0), V2::new(-0.5, -0.5), 25.0),
+      Thruster::new("T3", P2::new(-2.0, -1.0), V2::new(0.5, -0.5), 50.0),
     ],
   };
 
@@ -119,22 +105,26 @@ fn main() {
   println!("Center of mass: ({}, {})", body.center_of_mass.x, body.center_of_mass.y);
   for thruster in &body.thrusters {
     println!("Thruster {}:", thruster.name);
-    println!("  location  : ({}, {})", thruster.location.x, thruster.location.y);
+    println!("  location  : ({}, {})", thruster.position.x, thruster.position.y);
     println!("  direction : ({}, {})", thruster.direction.x, thruster.direction.y);
     println!("  max thrust: {}N", thruster.max_thrust);
   }
 
   // Calculated data
-  let thruster_effects: Vec<_> = body.thrusters.iter().map(|t| {
-    // TODO: should direction be normalized?
-    ThrusterEffect {
-      x_acceleration: t.direction.x / body.mass,
-      y_acceleration: t.direction.y / body.mass,
-      // TODO: take mass into account in angular effect.
-      angular_acceleration: t.direction.perp(&t.location.coords),
-      thruster: t.clone(),
-    }
-  }).collect();
+  let thruster_effects: Vec<_> = {
+    let mass = body.mass;
+    body.thrusters.iter().map(|t| {
+      let x_acceleration = t.direction.x / mass;
+      let y_acceleration = t.direction.y / mass;
+      ThrusterEffect {
+        x_acceleration,
+        y_acceleration,
+        // TODO: how to calculate the angular acceleration? should at least take mass and arm into account.
+        angular_acceleration: t.direction.perp(&t.position.coords),
+        thruster: t.clone(),
+      }
+    }).collect()
+  };
 
   println!();
   println!("Thruster effects");
