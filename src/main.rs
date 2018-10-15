@@ -1,10 +1,25 @@
 #![allow(dead_code)]
 
+//! A linear programming solver for thruster dynamics acting on a body in 2D space.
+//! We use the following units:
+//!
+//! * Distance : meters (m)
+//! * Linear:
+//!   * Mass         : kilogram (kg)
+//!   * Force        : Newton (N)
+//!   * Velocity     : meter per second (m/s)
+//!   * Acceleration : meter per second squared (m/s^2)
+//! * Angular:
+//!   * Angular mass (moment of inertia, rotational inertia) : kilograms meter squared (kg m^2)
+//!   * Angular force (torque, moment, moment of force)      : Newton meter (N m)
+//!   * Angular velocity                                     : radian per second (rad/s)
+//!   * Angular acceleration                                 : radian per second squared (rad/s^2)
+
 extern crate lpsolve;
 extern crate nalgebra;
 
 use lpsolve::*;
-use nalgebra::{Vector2, Point2};
+use nalgebra::{Point2, Vector2};
 
 type Num = f64;
 type V2 = Vector2<Num>;
@@ -12,9 +27,9 @@ type P2 = Point2<Num>;
 
 /// A 2D body.
 struct Body {
-  /// The mass of the body, in kilograms (kg).
+  /// The mass of the body, in kg.
   mass: f64,
-  /// The center of mass of the body.
+  /// The center of mass of the body, in m.
   center_of_mass: P2,
   /// The thrusters of the body.
   thrusters: Vec<Thruster>,
@@ -25,11 +40,12 @@ struct Body {
 struct Thruster {
   /// Name of the thruster.
   name: String,
-  /// Location of the thruster on the body.
+  /// Location of the thruster on the body, in m.
   location: P2,
-  /// Direction in which acceleration is applied.
+  // TODO: should direction be normalized?
+  /// Direction in which acceleration is applied, in m.
   direction: V2,
-  /// Maximum force the thruster can produce, in newtons (N).
+  /// Maximum force the thruster can produce, in N.
   max_thrust: Num,
 }
 
@@ -37,30 +53,32 @@ struct Thruster {
 struct ThrusterEffect {
   /// The thruster this effect calculation is for.
   thruster: Thruster,
-  /// How much acceleration in meters per second squared (m/s^2) is applied to the x axis, when the thruster provides 1N of thrust.
+  /// How much linear acceleration in m/s^2 is applied to the x axis, when the thruster provides 1N of thrust.
   x_acceleration: Num,
-  /// How much acceleration in m/s^2 is applied to the y axis, when the thruster provides 1N of thrust.
+  /// How much linear acceleration in m/s^2 is applied to the y axis, when the thruster provides 1N of thrust.
   y_acceleration: Num,
-  /// How much angular acceleration in radians per second squared (rad/s^2) is applied, when the thruster provides 1N of thrust.
+  /// How much angular acceleration in rad/s^2 is applied, when the thruster provides 1N of thrust.
   angular_acceleration: Num,
 }
 
-/// The command to execute for a certain axis, which accelerates (or decelerates) on that axis.
+/// The command to execute for a certain axis, which accelerates on that axis. Linear acceleration
+/// for linear axes, and angular acceleration for the angular axis. Negative acceleration is
+/// deceleration.
 #[derive(Debug)]
 enum AccelerationCommand {
   /// Require nothing: do not care about acceleration on the axis.
   Nothing,
   /// Require zero acceleration on the axis.
   Zero,
-  /// Maximize positive acceleration on the axis.
+  /// Maximize acceleration on the axis.
   Positive,
-  /// Maximize negative acceleration on the axis.
+  /// Minimize (or maximize negative) acceleration on the axis.
   Negative,
-// TODO: Maximize acceleration to stop on the axis.
+//  /// Maximize deceleration on the axis to stop the body.
 //  Stop {
-//    ///
-//    speed: f64
-//  },
+//    /// Maximum deceleration that may be applied to stop the body.
+//    maximum_deceleration: f64
+//  }
 }
 
 fn main() {
