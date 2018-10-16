@@ -201,7 +201,7 @@ fn solve(
         objective_function[i] -= te.x_acceleration
       }
       // Add constraint row: thrusters provide linear acceleration on the x-axis <= maximum_deceleration.
-      let x_effects: Vec<_> = thruster_effects.iter().map(|td| td.x_acceleration).collect();
+      let x_effects: Vec<_> = thruster_effects.iter().map(|td| -td.x_acceleration).collect();
       let row = row(x_effects, num_thrusters).into_boxed_slice();
       p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
     }
@@ -234,7 +234,7 @@ fn solve(
         objective_function[i] -= te.y_acceleration
       }
       // Add constraint row: thrusters provide linear acceleration on the y-axis <= maximum_deceleration.
-      let y_effects: Vec<_> = thruster_effects.iter().map(|td| td.y_acceleration).collect();
+      let y_effects: Vec<_> = thruster_effects.iter().map(|td| -td.y_acceleration).collect();
       let row = row(y_effects, num_thrusters).into_boxed_slice();
       p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
     }
@@ -267,7 +267,7 @@ fn solve(
         objective_function[i] -= te.angular_acceleration;
       }
       // Add constraint row: thrusters provide angular acceleration <= maximum_deceleration.
-      let angular_effects: Vec<_> = thruster_effects.iter().map(|td| td.angular_acceleration).collect();
+      let angular_effects: Vec<_> = thruster_effects.iter().map(|td| -td.angular_acceleration).collect();
       let row = row(angular_effects, num_thrusters).into_boxed_slice();
       p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
     }
