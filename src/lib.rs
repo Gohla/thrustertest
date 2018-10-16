@@ -46,9 +46,9 @@ impl Body {
       let y_acceleration = t.direction.y / mass;
       let angular_acceleration = {
         let arm = t.position - center_of_mass;
-        let arm_distance = nalgebra::distance(&t.position, &center_of_mass);
+        let arm_distance_squared = nalgebra::distance_squared(&t.position, &center_of_mass);
         let torque = arm.perp(&t.direction); // Angular force.
-        let moment_of_inertia = mass * arm_distance; // Angular mass.
+        let moment_of_inertia = mass * arm_distance_squared; // Angular mass.
         torque / moment_of_inertia
       };
       Effect {
