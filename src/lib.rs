@@ -44,167 +44,21 @@ impl Body {
     let effects = thrusters.iter().map(|t| {
       let x_acceleration = t.direction.x / mass;
       let y_acceleration = t.direction.y / mass;
+      let angular_acceleration = {
+        let arm = t.position - center_of_mass;
+        let arm_distance = nalgebra::distance(&t.position, &center_of_mass);
+        let torque = arm.perp(&t.direction); // Angular force.
+        let moment_of_inertia = mass * arm_distance; // Angular mass.
+        torque / moment_of_inertia
+      };
       Effect {
         x_acceleration,
         y_acceleration,
-        // TODO: how to calculate the angular acceleration? should at least take mass and arm into account.
-        angular_acceleration: t.direction.perp(&t.position.coords),
+        angular_acceleration,
         thruster: t.clone(),
       }
     }).collect();
     Body { mass, center_of_mass, thrusters, effects }
-  }
-
-  pub fn solve(
-    &self,
-    x_target: Target,
-    y_target: Target,
-    angular_target: Target,
-  ) {
-    println!();
-    println!("Solving for x: {:?}, y: {:?}, angular: {:?}", x_target, y_target, angular_target);
-
-    let num_thrusters = self.effects.len();
-
-    let mut p = Problem::new(0, num_thrusters as i32).unwrap();
-    p.set_verbose(Verbosity::Critical);
-
-    // The objective function (row), with a column for each thruster indicating the sum of desired
-    // accelerations on each axis, when the thruster provides 1N of thrust.
-    // This function will be maximized (possibly constrained by several constraints).
-    let mut objective_function = vec![0.0; num_thrusters];
-
-    // Process x linear axis.
-    match x_target {
-      Target::Nothing => {}
-      Target::Zero => {
-        // Add constraint row: thrusters provide no linear acceleration on the x-axis.
-        let x_effects: Vec<_> = self.effects.iter().map(|td| td.x_acceleration).collect();
-        let row = row(x_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, 0.0, ConstraintType::Eq);
-      }
-      Target::Positive => {
-        // For each thruster: add its x-acceleration to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] += te.x_acceleration
-        }
-      }
-      Target::Negative => {
-        // For each thruster: add inverse of its x-acceleration to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.x_acceleration
-        }
-      }
-      Target::Stop { maximum_deceleration } => {
-        // For each thruster, add inverse of its x-acceleration to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.x_acceleration
-        }
-        // Add constraint row: thrusters provide linear acceleration on the x-axis <= maximum_deceleration.
-        let x_effects: Vec<_> = self.effects.iter().map(|td| -td.x_acceleration).collect();
-        let row = row(x_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
-      }
-    }
-
-    // Process y linear axis
-    match y_target {
-      Target::Nothing => {}
-      Target::Zero => {
-        // Add constraint row: thrusters provide no linear acceleration on the y-axis.
-        let y_effects: Vec<_> = self.effects.iter().map(|td| td.y_acceleration).collect();
-        let row = row(y_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, 0.0, ConstraintType::Eq);
-      }
-      Target::Positive => {
-        // For each thruster: add effect of movement in Y to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] += te.y_acceleration
-        }
-      }
-      Target::Negative => {
-        // For each thruster: add inverse of effect of movement in Y to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.y_acceleration
-        }
-      }
-      Target::Stop { maximum_deceleration } => {
-        // For each thruster: add inverse of effect of movement in Y to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.y_acceleration
-        }
-        // Add constraint row: thrusters provide linear acceleration on the y-axis <= maximum_deceleration.
-        let y_effects: Vec<_> = self.effects.iter().map(|td| -td.y_acceleration).collect();
-        let row = row(y_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
-      }
-    }
-
-    // Process angular axis
-    match angular_target {
-      Target::Nothing => {}
-      Target::Zero => {
-        // Add constraint row: thrusters provide no angular acceleration.
-        let angular_effects: Vec<_> = self.effects.iter().map(|td| td.angular_acceleration).collect();
-        let row = row(angular_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, 0.0, ConstraintType::Eq);
-      }
-      Target::Positive => {
-        // For each thruster: add effect of angular movement to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] += te.angular_acceleration;
-        }
-      }
-      Target::Negative => {
-        // For each thruster: add inverse of angular movement to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.angular_acceleration;
-        }
-      }
-      Target::Stop { maximum_deceleration } => {
-        // For each thruster: add inverse of angular movement to objective function.
-        for (i, te) in self.effects.iter().enumerate() {
-          objective_function[i] -= te.angular_acceleration;
-        }
-        // Add constraint row: thrusters provide angular acceleration <= maximum_deceleration.
-        let angular_effects: Vec<_> = self.effects.iter().map(|td| -td.angular_acceleration).collect();
-        let row = row(angular_effects, num_thrusters).into_boxed_slice();
-        p.add_constraint(&row, maximum_deceleration, ConstraintType::Le);
-      }
-    }
-
-    // Move the objective function row to the solver, and tell it that we want to maximize.
-    let objective_function_row = row(objective_function, num_thrusters);
-    p.set_objective_function(&objective_function_row);
-    p.set_maxim();
-
-    // For each thruster, add two rows that constrains thrust >= min_thrust and <= max_thrust.
-    for (i, te) in self.effects.iter().enumerate() {
-      let mut vmin = vec![0.0; num_thrusters];
-      vmin[i] = 1.0;
-      let r_min = row(vmin, num_thrusters).into_boxed_slice();
-      p.add_constraint(&r_min, te.thruster.min_thrust, ConstraintType::Ge);
-
-      let mut vmax = vec![0.0; num_thrusters];
-      vmax[i] = 1.0;
-      let r_max = row(vmax, num_thrusters).into_boxed_slice();
-      p.add_constraint(&r_max, te.thruster.max_thrust, ConstraintType::Le);
-    }
-
-    // Run the solver and print result.
-    let status = p.solve();
-    match status {
-      SolveStatus::Optimal | SolveStatus::Suboptimal => {
-        let mut result = vec![0.0; num_thrusters];
-        p.get_solution_variables(&mut result);
-        let obj = p.get_objective();
-        println!("Result: {:?} {:?}N => {}(m and rad)/s^2", status, result, obj);
-      }
-      _ => {
-        println!("Could not find a solution, or an error occurred: {:?}", status);
-      }
-    }
-    println!("Done");
   }
 }
 
@@ -243,23 +97,178 @@ pub struct Effect {
   angular_acceleration: Num,
 }
 
-/// The target acceleration for a certain axis. Linear acceleration for linear axes, and angular
-/// acceleration for the angular axis. Negative acceleration is deceleration.
+/// The target acceleration for a certain axis.
 #[derive(Debug)]
 pub enum Target {
-  /// Require nothing: do not care about acceleration on the axis.
-  Nothing,
   /// Require zero acceleration on the axis.
   Zero,
-  /// Maximize acceleration on the axis.
-  Positive,
-  /// Minimize (or maximize negative) acceleration on the axis.
-  Negative,
-  /// Maximize deceleration on the axis to stop the body.
-  Stop {
-    /// Maximum deceleration that may be applied to stop the body.
-    maximum_deceleration: f64
-  },
+  /// Maximize acceleration on the axis, optionally limiting acceleration.
+  Maximize(Option<f64>),
+  /// Minimize (or maximize negative) acceleration on the axis, optionally limiting acceleration
+  Minimize(Option<f64>),
+}
+
+impl Body {
+  pub fn solve(
+    &self,
+    x_target: Option<Target>,
+    y_target: Option<Target>,
+    angular_target: Option<Target>,
+  ) {
+    println!();
+    println!("Solving for x: {:?}, y: {:?}, angular: {:?}", x_target, y_target, angular_target);
+
+    let num_thrusters = self.effects.len();
+
+    let mut p = Problem::new(0, num_thrusters as i32).unwrap();
+    p.set_verbose(Verbosity::Critical);
+
+    // The objective function (row), with a column for each thruster indicating the sum of desired
+    // accelerations on each axis, when the thruster provides 1N of thrust.
+    // This function will be maximized (possibly constrained by several constraints).
+    let mut objective_function = vec![0.0; num_thrusters];
+
+    // Process x linear axis.
+    if let Some(x_target) = x_target {
+      match x_target {
+        Target::Zero => {
+          // Add constraint row: thrusters provide no linear acceleration on the x-axis.
+          let x_effects: Vec<_> = self.effects.iter().map(|e| e.x_acceleration).collect();
+          let row = row(x_effects, num_thrusters);
+          p.add_constraint(&row, 0.0, ConstraintType::Eq);
+        }
+        Target::Maximize(max_accel) => {
+          // For each thruster: add its x-acceleration to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] += e.x_acceleration
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide linear acceleration on the x-axis <= max_accel.
+            let x_effects: Vec<_> = self.effects.iter().map(|e| e.x_acceleration).collect();
+            let row = row(x_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+        Target::Minimize(max_accel) => {
+          // For each thruster: add inverse of its x-acceleration to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] -= e.x_acceleration
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide linear acceleration on the x-axis <= max_accel.
+            let x_effects: Vec<_> = self.effects.iter().map(|e| -e.x_acceleration).collect();
+            let row = row(x_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+      }
+    }
+
+    // Process y linear axis
+    if let Some(y_target) = y_target {
+      match y_target {
+        Target::Zero => {
+          // Add constraint row: thrusters provide no linear acceleration on the y-axis.
+          let y_effects: Vec<_> = self.effects.iter().map(|e| e.y_acceleration).collect();
+          let row = row(y_effects, num_thrusters);
+          p.add_constraint(&row, 0.0, ConstraintType::Eq);
+        }
+        Target::Maximize(max_accel) => {
+          // For each thruster: add effect of movement in Y to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] += e.y_acceleration
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide linear acceleration on the y-axis <= max_accel.
+            let y_effects: Vec<_> = self.effects.iter().map(|e| e.y_acceleration).collect();
+            let row = row(y_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+        Target::Minimize(max_accel) => {
+          // For each thruster: add inverse of effect of movement in Y to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] -= e.y_acceleration
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide linear acceleration on the y-axis <= max_accel.
+            let y_effects: Vec<_> = self.effects.iter().map(|e| -e.y_acceleration).collect();
+            let row = row(y_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+      }
+    }
+
+    // Process angular axis
+    if let Some(angular_target) = angular_target {
+      match angular_target {
+        Target::Zero => {
+          // Add constraint row: thrusters provide no angular acceleration.
+          let angular_effects: Vec<_> = self.effects.iter().map(|e| e.angular_acceleration).collect();
+          let row = row(angular_effects, num_thrusters);
+          p.add_constraint(&row, 0.0, ConstraintType::Eq);
+        }
+        Target::Maximize(max_accel) => {
+          // For each thruster: add effect of angular movement to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] += e.angular_acceleration;
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide angular acceleration <= max_accel.
+            let angular_effects: Vec<_> = self.effects.iter().map(|e| e.angular_acceleration).collect();
+            let row = row(angular_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+        Target::Minimize(max_accel) => {
+          // For each thruster: add inverse of angular movement to objective function.
+          for (i, e) in self.effects.iter().enumerate() {
+            objective_function[i] -= e.angular_acceleration;
+          }
+          if let Some(max_accel) = max_accel {
+            // Add constraint row: thrusters provide angular acceleration <= max_accel.
+            let angular_effects: Vec<_> = self.effects.iter().map(|e| -e.angular_acceleration).collect();
+            let row = row(angular_effects, num_thrusters);
+            p.add_constraint(&row, max_accel, ConstraintType::Le);
+          }
+        }
+      }
+    }
+
+    // Move the objective function row to the solver, and tell it that we want to maximize.
+    let objective_function_row = row(objective_function, num_thrusters);
+    p.set_objective_function(&objective_function_row);
+    p.set_maxim();
+
+    // For each thruster, add two rows that constrains thrust >= min_thrust and <= max_thrust.
+    for (i, e) in self.effects.iter().enumerate() {
+      let mut vmin = vec![0.0; num_thrusters];
+      vmin[i] = 1.0;
+      let r_min = row(vmin, num_thrusters);
+      p.add_constraint(&r_min, e.thruster.min_thrust, ConstraintType::Ge);
+
+      let mut vmax = vec![0.0; num_thrusters];
+      vmax[i] = 1.0;
+      let r_max = row(vmax, num_thrusters);
+      p.add_constraint(&r_max, e.thruster.max_thrust, ConstraintType::Le);
+    }
+
+    // Run the solver and print result.
+    let status = p.solve();
+    match status {
+      SolveStatus::Optimal | SolveStatus::Suboptimal => {
+        let mut result = vec![0.0; num_thrusters];
+        p.get_solution_variables(&mut result);
+        let obj = p.get_objective();
+        println!("Result: {:?} {:?}N => {}(m and rad)/s^2", status, result, obj);
+      }
+      _ => {
+        println!("Could not find a solution, or an error occurred: {:?}", status);
+      }
+    }
+    println!("Done");
+  }
 }
 
 

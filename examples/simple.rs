@@ -16,19 +16,8 @@ fn main() {
   );
   println!("{:?}", body);
 
-  // Solve for Y movement
-  body.solve(Target::Zero, Target::Positive, Target::Zero);
-  body.solve(Target::Zero, Target::Negative, Target::Zero);
-  body.solve(Target::Zero, Target::Stop { maximum_deceleration: 1.0 }, Target::Zero);
-  body.solve(Target::Zero, Target::Stop { maximum_deceleration: -1.0 }, Target::Zero);
-  // Solve for angular movement
-  body.solve(Target::Zero, Target::Zero, Target::Positive);
-  body.solve(Target::Zero, Target::Zero, Target::Negative);
-  // Solve for X movement
-  body.solve(Target::Positive, Target::Zero, Target::Zero);
-  body.solve(Target::Negative, Target::Zero, Target::Zero);
-  // Nothing
-  body.solve(Target::Nothing, Target::Nothing, Target::Nothing);
-  // Zero
-  body.solve(Target::Zero, Target::Zero, Target::Zero);
+  body.solve(Some(Target::Zero), Some(Target::Maximize(None)), Some(Target::Zero));
+  body.solve(Some(Target::Zero), Some(Target::Minimize(None)), Some(Target::Zero));
+  body.solve(Some(Target::Zero), Some(Target::Maximize(Some(1.0))), Some(Target::Zero));
+  body.solve(Some(Target::Zero), Some(Target::Minimize(Some(1.0))), Some(Target::Zero));
 }
