@@ -259,7 +259,7 @@ impl Body {
         let mut result = vec![0.0; num_thrusters];
         p.get_solution_variables(&mut result);
         let obj = p.get_objective();
-        println!("Result: {:?} {:?}N => {}(m and rad)/s^2", status, result, obj);
+        println!("Result: {:?} {:?} N => {:.2} (m and rad)/s^2", status, result, obj);
       }
       _ => {
         println!("Could not find a solution, or an error occurred: {:?}", status);
@@ -285,8 +285,8 @@ fn row<I>(values: I, columns: usize) -> Vec<f64>
 impl fmt::Debug for Body {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     writeln!(f, "Body setup");
-    writeln!(f, "Mass           : {}kg", self.mass);
-    writeln!(f, "Center of mass : ({}m, {}m)", self.center_of_mass.x, self.center_of_mass.y);
+    writeln!(f, "Mass           : {:.2} kg", self.mass);
+    writeln!(f, "Center of mass : ({:.2} m, {:.2} m)", self.center_of_mass.x, self.center_of_mass.y);
     writeln!(f);
     for thruster in &self.thrusters {
       fmt::Debug::fmt(thruster, f)?;
@@ -302,10 +302,10 @@ impl fmt::Debug for Body {
 impl fmt::Debug for Thruster {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     writeln!(f, "Thruster {}:", self.name);
-    writeln!(f, "  location   : ({}m, {}m)", self.position.x, self.position.y);
-    writeln!(f, "  direction  : ({}, {})", self.force_vector.x, self.force_vector.y);
-    writeln!(f, "  min thrust : {}N", self.min_thrust);
-    writeln!(f, "  max thrust : {}N", self.max_thrust);
+    writeln!(f, "  location   : ({:.2} m, {:.2} m)", self.position.x, self.position.y);
+    writeln!(f, "  direction  : ({:.2}, {:.2})", self.force_vector.x, self.force_vector.y);
+    writeln!(f, "  min thrust : {:.2} N", self.min_thrust);
+    writeln!(f, "  max thrust : {:.2} N", self.max_thrust);
     Ok(())
   }
 }
@@ -313,9 +313,9 @@ impl fmt::Debug for Thruster {
 impl fmt::Debug for Effect {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     writeln!(f, "Thruster {}:", self.thruster.name);
-    writeln!(f, "  x acceleration       : {}m/s^2", self.x_acceleration);
-    writeln!(f, "  y acceleration       : {}m/s^2", self.y_acceleration);
-    writeln!(f, "  angular acceleration : {}rad/s^2", self.angular_acceleration);
+    writeln!(f, "  x acceleration       : {:.2} m/s^2", self.x_acceleration);
+    writeln!(f, "  y acceleration       : {:.2} m/s^2", self.y_acceleration);
+    writeln!(f, "  angular acceleration : {:.2} rad/s^2", self.angular_acceleration);
     Ok(())
   }
 }
