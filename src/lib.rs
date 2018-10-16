@@ -5,14 +5,12 @@
 //!
 //! * Distance : meters (m)
 //! * Linear:
-//!   * Mass         : kilogram (kg)
 //!   * Force        : Newton (N)
-//!   * Velocity     : meter per second (m/s)
+//!   * Mass         : kilogram (kg)
 //!   * Acceleration : meter per second squared (m/s^2)
 //! * Angular:
-//!   * Angular mass (moment of inertia, rotational inertia) : kilograms meter squared (kg m^2)
 //!   * Angular force (torque, moment, moment of force)      : Newton meter (N m)
-//!   * Angular velocity                                     : radian per second (rad/s)
+//!   * Angular mass (moment of inertia, rotational inertia) : kilograms meter squared (kg m^2)
 //!   * Angular acceleration                                 : radian per second squared (rad/s^2)
 
 extern crate lpsolve;
@@ -42,11 +40,11 @@ impl Body {
   pub fn new(mass: f64, center_of_mass: P2, thrusters: impl Into<Vec<Thruster>>) -> Self {
     let thrusters = thrusters.into();
     let effects = thrusters.iter().map(|t| {
-      let x_acceleration = t.direction.x / mass;
-      let y_acceleration = t.direction.y / mass;
+      let x_acceleration = t.force_vector.x / mass;
+      let y_acceleration = t.force_vector.y / mass;
       let angular_acceleration = {
         let arm = t.position - center_of_mass;
-        let torque = arm.perp(&t.direction); // Angular force.
+        let torque = arm.perp(&t.force_vector); // Angular force.
         let arm_distance_squared = nalgebra::distance_squared(&t.position, &center_of_mass);
         let moment_of_inertia = mass * arm_distance_squared; // Angular mass.
         torque / moment_of_inertia
@@ -69,8 +67,8 @@ pub struct Thruster {
   name: String,
   /// Position of the thruster on the body, in m.
   position: P2,
-  /// Normalized direction in which acceleration is applied.
-  direction: V2,
+  /// Force vector (normalized) in which acceleration is applied.
+  force_vector: V2,
   /// Minimum force the thruster can produce, in N. Must be >= 0.
   min_thrust: Num,
   /// Maximum force the thruster can produce, in N. Must be >= 1.
@@ -78,10 +76,10 @@ pub struct Thruster {
 }
 
 impl Thruster {
-  pub fn new(name: impl Into<String>, position: P2, direction: V2, min_thrust: Num, max_thrust: Num) -> Self {
+  pub fn new(name: impl Into<String>, position: P2, force_vector: V2, min_thrust: Num, max_thrust: Num) -> Self {
     assert!(min_thrust >= 0.0, "Minimum thrust {} < 0.0", min_thrust);
     assert!(max_thrust >= 1.0, "Maximum thrust {} < 1.0", max_thrust);
-    Thruster { name: name.into(), position, direction: direction.normalize(), min_thrust, max_thrust }
+    Thruster { name: name.into(), position, force_vector: force_vector.normalize(), min_thrust, max_thrust }
   }
 }
 
@@ -305,7 +303,7 @@ impl fmt::Debug for Thruster {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     writeln!(f, "Thruster {}:", self.name);
     writeln!(f, "  location   : ({}m, {}m)", self.position.x, self.position.y);
-    writeln!(f, "  direction  : ({}, {})", self.direction.x, self.direction.y);
+    writeln!(f, "  direction  : ({}, {})", self.force_vector.x, self.force_vector.y);
     writeln!(f, "  min thrust : {}N", self.min_thrust);
     writeln!(f, "  max thrust : {}N", self.max_thrust);
     Ok(())
