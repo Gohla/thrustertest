@@ -16,8 +16,21 @@ fn main() {
   );
   println!("{:?}", body);
 
+  println!("Solve for linear x axis");
+  body.solve(Some(Target::Maximize(None)), Some(Target::Zero), Some(Target::Zero));
+  body.solve(Some(Target::Minimize(None)), Some(Target::Zero), Some(Target::Zero));
+  body.solve(Some(Target::Maximize(Some(1.0))), Some(Target::Zero), Some(Target::Zero));
+  body.solve(Some(Target::Minimize(Some(1.0))), Some(Target::Zero), Some(Target::Zero));
+  println!();
+  println!("Solve for linear y axis");
   body.solve(Some(Target::Zero), Some(Target::Maximize(None)), Some(Target::Zero));
   body.solve(Some(Target::Zero), Some(Target::Minimize(None)), Some(Target::Zero));
   body.solve(Some(Target::Zero), Some(Target::Maximize(Some(1.0))), Some(Target::Zero));
   body.solve(Some(Target::Zero), Some(Target::Minimize(Some(1.0))), Some(Target::Zero));
+  println!();
+  println!("Solve for angular axis");
+  body.solve(Some(Target::Zero), Some(Target::Zero), Some(Target::Maximize(None)));
+  body.solve(Some(Target::Zero), Some(Target::Zero), Some(Target::Minimize(None)));
+  body.solve(Some(Target::Zero), Some(Target::Zero), Some(Target::Maximize(Some(0.5))));
+  body.solve(Some(Target::Zero), Some(Target::Zero), Some(Target::Minimize(Some(0.5))));
 }

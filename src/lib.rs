@@ -44,9 +44,9 @@ impl Body {
       let y_acceleration = t.force_vector.y / mass;
       let angular_acceleration = {
         let arm = t.position - center_of_mass;
-        let torque = arm.perp(&t.force_vector); // Angular force.
+        let torque = arm.perp(&t.force_vector); // Angular force in Newton meter (N m).
         let arm_distance_squared = nalgebra::distance_squared(&t.position, &center_of_mass);
-        let moment_of_inertia = mass * arm_distance_squared; // Angular mass.
+        let moment_of_inertia = mass * arm_distance_squared; // Angular mass in kilograms meter squared (kg m^2).
         torque / moment_of_inertia
       };
       Effect {
@@ -113,7 +113,6 @@ impl Body {
     y_target: Option<Target>,
     angular_target: Option<Target>,
   ) {
-    println!();
     println!("Solving for x: {:?}, y: {:?}, angular: {:?}", x_target, y_target, angular_target);
 
     let num_thrusters = self.effects.len();
